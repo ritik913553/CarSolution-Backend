@@ -50,15 +50,12 @@ const userSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
-        fcmToken: {
-            type: String,
-            default: null,
-        },
         refreshToken: {
             type: String,
         },
         isVerifiedByAdmin: {
             type: Boolean,
+            default: false,
         },
         addharNumber: {
             type: String,

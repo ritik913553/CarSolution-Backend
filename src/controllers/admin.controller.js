@@ -35,14 +35,17 @@ const getAllSalespersons = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const salespersons = await User.find({ role: "salesperson" })
+    const salespersons = await User.find({ role: "salesman" , isVerifiedByAdmin: true})
       .select("-password")
       .skip(skip)
       .limit(limit)
       .lean();
 
+      console.log(salespersons)
+
     const totalSalespersons = await User.countDocuments({
-      role: "salesperson",
+      role: "salesman",
+      isVerifiedByAdmin: true
     });
 
     res.status(200).json({
@@ -70,7 +73,7 @@ const getUserDetails = async (req, res) => {
 
     // Additional data based on user role
     let additionalData = {};
-    if (user.role === "salesperson") {
+    if (user.role === "salesman") {
       // Get all bids placed by this salesperson
       const postsWithBids = await Post.aggregate([
         { $match: { "bid.user": userId } },
@@ -178,8 +181,9 @@ const getPendingApprovals = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const pendingSalespersons = await User.find({
-      role: 'salesperson',
-      isApproved: false
+      role: 'salesman',
+      isVerifiedByAdmin: false,
+      isEmailVerified: true
     })
     .select('-password')
     .skip(skip)
@@ -187,8 +191,9 @@ const getPendingApprovals = async (req, res) => {
     .lean();
 
     const totalPending = await User.countDocuments({
-      role: 'salesperson',
-      isApproved: false
+      role: 'salesman',
+      isVerifiedByAdmin: false,
+      isEmailVerified: true
     });
 
     res.status(200).json({
@@ -211,11 +216,11 @@ const approveSalesperson = async (req, res) => {
     const salesperson = await User.findOneAndUpdate(
       { 
         _id: userId, 
-        role: 'salesperson',
-        isApproved: false 
+        role: 'salesman',
+        isVerifiedByAdmin: false 
       },
       { 
-        isApproved: true,
+        isVerifiedByAdmin: true,
         rejectionReason: '' // Clear any previous rejection reason
       },
       { new: true }
@@ -239,6 +244,7 @@ const approveSalesperson = async (req, res) => {
 };
 
 // Reject a salesperson
+// If the salesperson is approved then also they can be rejected and the fresh applier will also be rejected
 const rejectSalesperson = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -251,11 +257,12 @@ const rejectSalesperson = async (req, res) => {
     const salesperson = await User.findOneAndUpdate(
       { 
         _id: userId, 
-        role: 'salesperson',
-        isApproved: false 
+        role: 'salesman',
+       
       },
       { 
-        rejectionReason: reason 
+        rejectionReason: reason ,
+         isVerifiedByAdmin: false 
       },
       { new: true }
     );
@@ -284,11 +291,11 @@ const getSalespersonApplication = async (req, res) => {
 
     const salesperson = await User.findOne({
       _id: userId,
-      role: 'salesperson'
+      role: 'salesman'
     })
     .select('-password')
     .lean();
-
+    
     if (!salesperson) {
       return res.status(404).json({ message: "Salesperson not found" });
     }

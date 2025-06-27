@@ -1,9 +1,12 @@
 import Post from "../models/post.model.js";
 import User from "../models/user.model.js";
+import { uploadOnCloudinary } from "../config/cloudinary.config.js";
+import mongoose from "mongoose";
 
 const createPost = async (req, res) => {
   try {
-    const editorId = req.user._id; // Assuming you have authentication middleware
+    const editorId = req.user._id;
+  
 
     // Validate editor role
     const editor = await User.findById(editorId);
@@ -20,8 +23,23 @@ const createPost = async (req, res) => {
       variant,
       fuelType,
       transmission,
-      image,
     } = req.body;
+
+    const imagePath = req.file?.path;
+
+    if (!imagePath) {
+      return res.status(400).json({ message: "Image is required" });
+    }
+
+    // Upload image to Cloudinary
+    const imageUploadResponse = await uploadOnCloudinary(imagePath);
+    if (!imageUploadResponse) {
+      return res.status(500).json({ message: "Image upload failed" });
+    }
+    const image = imageUploadResponse.secure_url; // Get the URL of the uploaded image
+    console.log(image)
+
+
 
     const newPost = new Post({
       createdBy: editorId,
@@ -53,6 +71,8 @@ const getMyPosts = async (req, res) => {
   try {
     const editorId = req.user._id;
 
+    console.log("Hello");
+
     // Get all posts by this editor with bid summary
     const posts = await Post.aggregate([
       { $match: { createdBy: editorId } },
@@ -69,18 +89,7 @@ const getMyPosts = async (req, res) => {
           transmission: 1,
           image: 1,
           createdAt: 1,
-          totalBids: { $size: "$bid" },
-          topBids: {
-            $slice: [
-              {
-                $sortArray: {
-                  input: "$bid",
-                  sortBy: { amount: -1 },
-                },
-              },
-              2,
-            ],
-          },
+         
         },
       },
     ]);
@@ -92,9 +101,12 @@ const getMyPosts = async (req, res) => {
   }
 };
 
+
 const getPostDetails = async (req, res) => {
+  console.log("Hello")
   try {
     const { postId } = req.params;
+    console.log(postId)
     const editorId = req.user._id;
 
     // First verify the post belongs to this editor
@@ -152,7 +164,7 @@ const getPostDetails = async (req, res) => {
 
     // Calculate the number of salespersons who have not bidded
     const totalSalespersons = await User.countDocuments({
-      role: "salesperson",
+      role: "salesman",
     });
     const notBiddedCount = totalSalespersons - post[0].totalBids;
 
@@ -174,6 +186,7 @@ const updatePost = async (req, res) => {
     const editorId = req.user._id;
     const updates = req.body;
 
+    console.log(updates)
     // Check if post exists and belongs to editor
     const post = await Post.findOne({ _id: postId, createdBy: editorId });
     if (!post) {
