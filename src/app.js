@@ -31,7 +31,13 @@ app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
 
 import userRoute from "./routes/user.routes.js";
+import editorRoute from "./routes/editor.routes.js";
+import adminRoute from "./routes/admin.routes.js";
+import salespersonRoute from "./routes/salesperson.routes.js";
 
 app.use("/api/v1/user", userRoute);
+app.use("/api/v1/editor",editorRoute)
+app.use("/api/v1/admin", adminRoute);
+app.use("/api/v1/salesperson", salespersonRoute);
 
 export { app };
