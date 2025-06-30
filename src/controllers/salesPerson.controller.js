@@ -52,7 +52,7 @@ const getAvailablePosts = async (req, res) => {
     }
 
     const salespersonBrands = salesperson.brandName || [];
-    console.log("Salesperson Brands:", salespersonBrands);
+    // console.log("Salesperson Brands:", salespersonBrands);
 
     // Pagination setup
     const page = parseInt(req.query.page) || 1;
@@ -65,7 +65,7 @@ const getAvailablePosts = async (req, res) => {
 
     if (salespersonBrands.length > 0) {
       posts = await Post.find({ brand: { $in: salespersonBrands } })
-        .select("-bid") // Exclude bid information
+        // .select("-bid") // Exclude bid information
         .skip(skip)
         .limit(limit)
         .lean();
@@ -100,7 +100,7 @@ const getAllPosts = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const posts = await Post.find({})
-      .select("-bid")
+      // .select("-bid")
       .skip(skip)
       .limit(limit)
       .lean();
@@ -123,9 +123,12 @@ const getAllPosts = async (req, res) => {
 const placeBid = async (req, res) => {
   try {
     const salespersonId = req.user._id;
-    const { postId, bidAmount } = req.body;
+    const postId = req.params.postId;
+    // console.log(req.body);
 
-    if (isNaN(bidAmount) || bidAmount <= 0) {
+    const { amount } = req.body;
+
+    if (isNaN(amount) || amount  <= 0) {
       return res.status(400).json({ message: "Invalid bid amount" });
     }
 
@@ -145,7 +148,7 @@ const placeBid = async (req, res) => {
 
     post.bid.push({
       user: salespersonId,
-      amount: bidAmount,
+      amount: amount,
 
       bidAt: new Date(),
     });
@@ -216,63 +219,51 @@ const getMyBidPost = async (req, res) => {
 const updateBid = async (req, res) => {
   try {
     const salespersonId = req.user._id;
-    const { bidId } = req.params;
-    const { newBidAmount, newOfferDetails } = req.body;
+    const { postId } = req.params;
+    const { amount } = req.body;
 
-    if (isNaN(newBidAmount)) {
-      return res.status(400).json({ message: "Invalid bid amount" });
+    // Validate amount
+    if (isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ message: "Invalid bid amount - must be a positive number" });
     }
 
-    const post = await Post.findOne({ "bid._id": bidId });
+    // Find the post
+    const post = await Post.findOne({ _id: postId });
     if (!post) {
-      return res.status(404).json({ message: "Bid not found" });
+      return res.status(404).json({ message: "Post not found" });
     }
 
+    // Find the user's bid in the post's bids array
     const bidIndex = post.bid.findIndex(
-      (b) => b._id.equals(bidId) && b.user.equals(salespersonId)
+      (b) => b.user.equals(salespersonId)  // Only check user ID since we're updating user's own bid
     );
 
     if (bidIndex === -1) {
-      return res.status(404).json({ message: "Bid not found or unauthorized" });
+      return res.status(404).json({ 
+        message: "You haven't placed a bid on this post yet" 
+      });
     }
 
-    post.bid[bidIndex].amount = newBidAmount;
-    if (newOfferDetails) {
-      post.bid[bidIndex].offerDetails = newOfferDetails;
-    }
+    // Update the bid
+    post.bid[bidIndex].amount = amount;
     post.bid[bidIndex].bidAt = new Date();
 
+    // Save the updated post
     await post.save();
 
-    res.status(200).json({ message: "Bid updated successfully" });
+    res.status(200).json({ 
+      message: "Bid updated successfully",
+      updatedBid: post.bid[bidIndex]  // Optionally return the updated bid
+    });
   } catch (error) {
     console.error("Error updating bid:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ 
+      message: "Internal server error",
+      error: error.message  // Include error message for debugging
+    });
   }
 };
 
-const withdrawBid = async (req, res) => {
-  try {
-    const salespersonId = req.user._id;
-    const { bidId } = req.params;
-
-    // Find and update the post to remove the bid
-    const post = await Post.findOneAndUpdate(
-      { "bid._id": bidId, "bid.user": salespersonId },
-      { $pull: { bid: { _id: bidId, user: salespersonId } } },
-      { new: true }
-    );
-
-    if (!post) {
-      return res.status(404).json({ message: "Bid not found or unauthorized" });
-    }
-
-    res.status(200).json({ message: "Bid withdrawn successfully" });
-  } catch (error) {
-    console.error("Error withdrawing bid:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
 
 export {
   getAvailablePosts,
@@ -280,5 +271,5 @@ export {
   placeBid,
   getMyBidPost,
   updateBid,
-  withdrawBid,
+ 
 };

@@ -41,7 +41,7 @@ const getAllSalespersons = async (req, res) => {
       .limit(limit)
       .lean();
 
-      console.log(salespersons)
+      // console.log(salespersons)
 
     const totalSalespersons = await User.countDocuments({
       role: "salesman",
@@ -103,13 +103,16 @@ const getUserDetails = async (req, res) => {
 
 const getAllPosts = async (req, res) => {
   try {
-    // Pagination parameters
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized access" });
+    }
+
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const posts = await Post.find()
-      .populate("createdBy", "name email") // Show editor info
+    const posts = await Post.find({})
+      // .select("-bid")
       .skip(skip)
       .limit(limit)
       .lean();
@@ -123,7 +126,7 @@ const getAllPosts = async (req, res) => {
       currentPage: page,
     });
   } catch (error) {
-    console.error("Error fetching posts:", error);
+    console.error("Error fetching all posts:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -134,8 +137,8 @@ const getPostWithAllBids = async (req, res) => {
     const { postId } = req.params;
 
     const post = await Post.findById(postId)
-      .populate("createdBy", "name email") // Editor info
-      .populate("bid.user", "name email company") // Bidder info
+      .populate("createdBy", "fullName email") // Editor info
+      .populate("bid.user", "fullName email ") // Bidder info
       .lean();
 
     if (!post) {
@@ -248,11 +251,9 @@ const approveSalesperson = async (req, res) => {
 const rejectSalesperson = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { reason } = req.body;
+    // const { reason } = req.body;
 
-    if (!reason) {
-      return res.status(400).json({ message: "Rejection reason is required" });
-    }
+
 
     const salesperson = await User.findOneAndUpdate(
       { 
@@ -261,8 +262,9 @@ const rejectSalesperson = async (req, res) => {
        
       },
       { 
-        rejectionReason: reason ,
-         isVerifiedByAdmin: false 
+       
+         isVerifiedByAdmin: false ,
+         isEmailVerified:false
       },
       { new: true }
     );
@@ -308,6 +310,67 @@ const getSalespersonApplication = async (req, res) => {
 };
 
 
+const deleteEditor = async (req, res) => {
+  try {
+    const { editorId } = req.params;
+
+    // Find and delete the editor
+    const editor = await User.findOneAndDelete({ _id: editorId, role: "editor" });
+
+    if (!editor) {
+      return res.status(404).json({ message: "Editor not found" });
+    }
+
+    // Optionally, delete all posts created by this editor
+    await Post.deleteMany({ createdBy: editorId });
+
+    res.status(200).json({ message: "Editor and their posts deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting editor:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+const createEditor = async (req, res) => {
+  try {
+    const { fullName, email, password } = req.body;
+
+    // Check if email already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({ message: "Email already in use" });
+    }
+    
+
+    // Create the editor
+    const editor = new User({
+      fullName,
+      email,
+      password,
+      role: "editor",
+      isEmailVerified: true, 
+      isVerifiedByAdmin: true 
+    });
+
+    await editor.save();
+
+    res.status(201).json({
+      message: "Editor created successfully",
+      editor: {
+        _id: editor._id,
+        fullName: editor.fullName,
+        email: editor.email,
+        role: editor.role
+      }
+    });
+  } catch (error) {
+    console.error("Error creating editor:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
 
 
 export {
@@ -320,5 +383,7 @@ export {
   getPendingApprovals,
   approveSalesperson,
   rejectSalesperson,
-  getSalespersonApplication
+  getSalespersonApplication,
+  deleteEditor,
+  createEditor
 };
