@@ -34,10 +34,12 @@ import userRoute from "./routes/user.routes.js";
 import editorRoute from "./routes/editor.routes.js";
 import adminRoute from "./routes/admin.routes.js";
 import salespersonRoute from "./routes/salesperson.routes.js";
+import carRoute  from "./routes/car.routes.js"
 
 app.use("/api/v1/user", userRoute);
 app.use("/api/v1/editor",editorRoute)
 app.use("/api/v1/admin", adminRoute);
 app.use("/api/v1/salesperson", salespersonRoute);
+app.use("/api/v1/car",carRoute)
 
 export { app };
